@@ -1,0 +1,634 @@
+<title>Operación Zona Cero</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik+Spray+Paint&family=Sedgwick+Ave+Display&family=Share+Tech+Mono&display=swap">
+<!--
+  ============================================================
+  OPERACIÓN ZONA CERO · Escape room de ciberseguridad (9no)
+  Configuración para el docente: buscar "CONFIG" en el script.
+  ============================================================
+  Psst, agente... si estás leyendo el código fuente vas bien.
+  La clave de la cerradura 2 es: FANTASMA
+-->
+<style>
+/* Layout: HUD fijo arriba, una sola terminal central por nivel, fondo de lluvia de código. Diseño oscuro único a propósito. */
+:root{
+  color-scheme: dark;
+  --bg:#06050b;
+  --panel:#0e0c17;
+  --panel-2:#151225;
+  --line:#2a2440;
+  --fg:#e9e6f5;
+  --muted:#8f88aa;
+  --green:#3dff7a;
+  --pink:#ff2bd6;
+  --cyan:#14f0ff;
+  --yellow:#f6ff3b;
+  --red:#ff3b5c;
+  --f-tag:"Rubik Spray Paint","Sedgwick Ave Display","Permanent Marker",Impact,sans-serif;
+  --f-graf:"Sedgwick Ave Display","Rubik Spray Paint",Impact,sans-serif;
+  --f-mono:"Share Tech Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{
+  background:var(--bg);color:var(--fg);font-family:var(--f-mono);font-size:16px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:0 40px;overflow-x:hidden;
+}
+::selection{background:var(--yellow);color:#000}
+#rain{position:fixed;inset:0;width:100%;height:100%;z-index:0;opacity:.22;pointer-events:none}
+.scan{position:fixed;inset:0;pointer-events:none;z-index:1;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 1px,transparent 1px 3px);}
+.wrap{position:relative;z-index:2;max-width:920px;margin:0 auto}
+button{font-family:var(--f-mono);cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--yellow);outline-offset:3px}
+
+/* ---------- Intro ---------- */
+.intro{padding-block:48px 24px;display:grid;gap:28px}
+.logo{font-family:var(--f-tag);font-size:clamp(46px,11vw,110px);line-height:.9;margin:0;color:var(--pink);
+  text-shadow:0 0 12px rgba(255,43,214,.7),0 0 40px rgba(255,43,214,.35),4px 4px 0 #3a0730;transform:rotate(-3deg);text-wrap:balance}
+.logo span{display:block;color:var(--green);text-shadow:0 0 12px rgba(61,255,122,.7),0 0 40px rgba(61,255,122,.3),4px 4px 0 #063018;font-size:.62em;transform:translateX(8%) rotate(2deg)}
+.lede{max-width:62ch;color:var(--fg);margin:0}
+.lede b{color:var(--cyan)}
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.rule{border:1px dashed var(--line);padding:14px;background:rgba(14,12,23,.85)}
+.rule h3{font-family:var(--f-graf);font-weight:400;margin:0 0 4px;font-size:22px;color:var(--yellow)}
+.rule p{margin:0;color:var(--muted);font-size:14px}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end;max-width:640px}
+.form label{display:grid;gap:6px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+input[type=text]{width:100%;background:#000;border:1px solid var(--line);color:var(--green);font-family:var(--f-mono);
+  font-size:18px;padding:12px 14px;caret-color:var(--green)}
+input[type=text]:focus{border-color:var(--green);box-shadow:0 0 0 1px var(--green),0 0 18px rgba(61,255,122,.25)}
+.btn{border:2px solid var(--green);background:transparent;color:var(--green);padding:12px 22px;font-size:17px;letter-spacing:.08em;
+  text-transform:uppercase;box-shadow:0 0 14px rgba(61,255,122,.25),inset 0 0 14px rgba(61,255,122,.12);transition:transform .1s,background .15s}
+.btn:hover{background:rgba(61,255,122,.12)}
+.btn:active{transform:translateY(2px)}
+.btn.pink{border-color:var(--pink);color:var(--pink);box-shadow:0 0 14px rgba(255,43,214,.25),inset 0 0 14px rgba(255,43,214,.12)}
+.btn.pink:hover{background:rgba(255,43,214,.12)}
+.btn.ghost{border-color:var(--line);color:var(--muted);box-shadow:none}
+.btn.ghost:hover{color:var(--fg);border-color:var(--muted)}
+.btn.big{font-family:var(--f-graf);font-size:28px;text-transform:none;letter-spacing:.02em;padding:10px 28px}
+.btn[disabled]{opacity:.35;cursor:not-allowed}
+.err{color:var(--red);min-height:1.5em;margin:0}
+
+/* ---------- HUD ---------- */
+.hud{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;
+  padding:10px 14px;margin-top:16px;background:rgba(6,5,11,.92);border:1px solid var(--line);backdrop-filter:blur(4px)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.hud .who{color:var(--cyan);font-size:14px;flex:1 1 160px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stat{display:flex;gap:6px;align-items:baseline;font-variant-numeric:tabular-nums}
+.stat small{color:var(--muted);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.stat b{font-size:20px;font-weight:400}
+#hPts{color:var(--yellow)} #hTime{color:var(--green)} #hTime.low{color:var(--red);animation:blink 1s steps(2) infinite}
+.lives{display:flex;gap:4px}
+.life{width:14px;height:14px;background:var(--pink);clip-path:polygon(50% 100%,0 40%,0 15%,20% 0,50% 18%,80% 0,100% 15%,100% 40%);
+  filter:drop-shadow(0 0 4px var(--pink))}
+.life.off{background:#2a2033;filter:none}
+.iconbtn{background:transparent;border:1px solid var(--line);color:var(--muted);padding:4px 10px;font-size:13px}
+.iconbtn:hover{color:var(--fg)}
+
+/* ---------- Mapa de cerraduras ---------- */
+.locks{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin:18px 0}
+.lock{border:1px solid var(--line);padding:6px 0;text-align:center;font-size:12px;color:var(--muted);background:rgba(14,12,23,.8);
+  font-variant-numeric:tabular-nums}
+.lock.done{border-color:var(--green);color:var(--green);box-shadow:inset 0 0 10px rgba(61,255,122,.2)}
+.lock.now{border-color:var(--pink);color:var(--pink);box-shadow:0 0 12px rgba(255,43,214,.4)}
+
+/* ---------- Terminal del nivel ---------- */
+.term{border:1px solid var(--line);background:linear-gradient(180deg,var(--panel),#09080f);position:relative}
+.term-bar{display:flex;justify-content:space-between;gap:8px;padding:8px 14px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase}
+.term-body{padding:20px 18px 22px;display:grid;gap:18px}
+.lvl-head{display:grid;gap:6px}
+.lvl-num{font-size:13px;letter-spacing:.2em;color:var(--pink);text-transform:uppercase}
+.lvl-title{font-family:var(--f-graf);font-weight:400;font-size:clamp(30px,6vw,46px);line-height:1;margin:0;color:var(--fg);
+  text-shadow:0 0 18px rgba(20,240,255,.35);text-wrap:balance}
+.tool{justify-self:start;display:inline-flex;gap:8px;align-items:center;border:1px solid var(--yellow);color:var(--yellow);padding:4px 10px;font-size:14px;
+  background:rgba(246,255,59,.06)}
+.tool::before{content:"INVESTIGÁ >";color:var(--muted);font-size:11px;letter-spacing:.12em}
+.story{margin:0;max-width:66ch;color:var(--fg);min-height:3em}
+.story .cur{display:inline-block;width:.6em;background:var(--green);animation:blink 1s steps(2) infinite;margin-left:2px}
+.cipher{font-family:var(--f-mono);font-size:clamp(17px,3.6vw,24px);color:var(--green);background:#000;border:1px solid #1d3a27;padding:16px;
+  word-break:break-all;letter-spacing:.06em;text-shadow:0 0 8px rgba(61,255,122,.6);user-select:all}
+.cipher.cyan{color:var(--cyan);border-color:#123a40;text-shadow:0 0 8px rgba(20,240,255,.6)}
+.cipher small{display:block;color:var(--muted);font-size:12px;letter-spacing:.14em;text-transform:uppercase;text-shadow:none;margin-bottom:6px;user-select:none}
+.ghost-text{color:var(--panel);font-size:14px;margin:0}
+.ghost-text::selection{background:var(--yellow);color:#000}
+.morse{display:flex;gap:18px;align-items:center;flex-wrap:wrap;background:#000;border:1px solid var(--line);padding:16px}
+.led{width:46px;height:46px;border-radius:50%;background:#1a1020;border:2px solid #3a2440;transition:background .02s}
+.led.on{background:var(--yellow);border-color:var(--yellow);box-shadow:0 0 24px var(--yellow),0 0 60px rgba(246,255,59,.5)}
+.morse-txt{font-size:24px;color:var(--yellow);letter-spacing:.2em;min-height:1.5em}
+.hash{font-size:clamp(13px,2.8vw,17px)}
+.answer{display:flex;gap:10px;flex-wrap:wrap}
+.answer input{flex:1 1 220px;min-width:0}
+.feedback{margin:0;min-height:1.5em;font-size:15px}
+.feedback.ok{color:var(--green)} .feedback.bad{color:var(--red)}
+.hints{display:grid;gap:8px}
+.hint-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.hint{border-left:3px solid var(--cyan);padding:8px 12px;background:rgba(20,240,255,.06);color:var(--fg);margin:0;font-size:15px}
+.cost{color:var(--muted);font-size:13px}
+.shake{animation:shake .35s}
+@keyframes shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+@keyframes blink{50%{opacity:0}}
+
+/* ---------- Overlays ---------- */
+.overlay{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:20px;background:rgba(3,2,7,.88)}
+.modal{max-width:560px;width:100%;border:2px solid var(--green);background:var(--panel);padding:26px;display:grid;gap:14px;
+  box-shadow:0 0 40px rgba(61,255,122,.25)}
+.modal h2{font-family:var(--f-graf);font-weight:400;margin:0;font-size:38px;line-height:1;color:var(--green)}
+.modal p{margin:0}
+.modal .fact{border:1px dashed var(--line);padding:12px;color:var(--fg);font-size:15px}
+.modal .fact b{color:var(--yellow);font-weight:400;display:block;font-size:12px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px}
+.modal.red{border-color:var(--red);box-shadow:0 0 50px rgba(255,59,92,.4)}
+.modal.red h2{color:var(--red)}
+.countdown{font-size:64px;color:var(--red);text-align:center;font-variant-numeric:tabular-nums;text-shadow:0 0 20px rgba(255,59,92,.7)}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+
+/* ---------- Resultados ---------- */
+.results{padding-block:28px;display:grid;gap:22px}
+.grade{display:flex;gap:24px;align-items:center;flex-wrap:wrap}
+.grade-num{font-family:var(--f-tag);font-size:140px;line-height:.9;color:var(--yellow);text-shadow:0 0 20px rgba(246,255,59,.6),5px 5px 0 #3a3a00}
+.grade-num small{font-size:.3em;color:var(--muted);text-shadow:none}
+.sumgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.sum{border:1px solid var(--line);padding:12px;background:rgba(14,12,23,.9)}
+.sum small{display:block;color:var(--muted);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.sum b{font-weight:400;font-size:24px;font-variant-numeric:tabular-nums}
+.criteria{color:var(--muted);font-size:14px;max-width:70ch;margin:0}
+.steps{margin:0;padding-left:22px;display:grid;gap:4px}
+.steps b{color:var(--cyan);font-weight:400}
+
+@media (max-width:560px){
+  .form{grid-template-columns:1fr}
+  .locks{grid-template-columns:repeat(4,1fr)}
+  .grade-num{font-size:100px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  #rain{display:none}
+}
+</style>
+
+<canvas id="rain" aria-hidden="true"></canvas>
+<div class="scan" aria-hidden="true"></div>
+
+<div class="wrap" id="app">
+
+  <!-- ===== INTRO ===== -->
+  <section class="intro" id="scrIntro">
+    <h1 class="logo">Operación<span>Zona Cero</span></h1>
+    <p class="lede">Una IA llamada <b>NÚCLEO</b> tomó el control del servidor del liceo y lo cerró con <b>8 cerraduras digitales</b>. Cada cerradura usa una técnica distinta de cifrado o de seguridad. El sistema te dice <b>qué técnica usa</b>, pero no cómo romperla: eso lo tenés que investigar vos en la web.</p>
+    <div class="rules">
+      <div class="rule"><h3>Puntos</h3><p>Cada cerradura abierta suma 100. Cada error resta 10 y cada pista resta 15.</p></div>
+      <div class="rule"><h3>Vidas</h3><p>Tenés 5 intentos. Si los gastás, el sistema te bloquea 30 segundos, igual que un celular.</p></div>
+      <div class="rule"><h3>Tiempo</h3><p>40 minutos. Cuando termine o cuando entregues, descargás tu comprobante.</p></div>
+      <div class="rule"><h3>Pistas</h3><p>Hay dos por cerradura. Ayudan, pero nunca te dan la respuesta.</p></div>
+    </div>
+    <form class="form" id="fIntro" autocomplete="off">
+      <label for="inName">Nombre de agente (nombre y apellido)
+        <input type="text" id="inName" maxlength="40" required placeholder="Ej: Valentina Rodríguez">
+      </label>
+      <label for="inGroup">Grupo
+        <input type="text" id="inGroup" maxlength="12" required placeholder="Ej: 9°2">
+      </label>
+      <p class="err" id="introErr"></p>
+      <div><button class="btn big" type="submit" id="btnStart">Entrar al sistema</button></div>
+    </form>
+  </section>
+
+  <!-- ===== JUEGO ===== -->
+  <section id="scrGame" hidden>
+    <div class="hud" role="status">
+      <div class="who" id="hWho">AGENTE</div>
+      <div class="stat"><small>Puntos</small><b id="hPts">0</b></div>
+      <div class="stat"><small>Vidas</small><div class="lives" id="hLives"></div></div>
+      <div class="stat"><small>Tiempo</small><b id="hTime">40:00</b></div>
+      <button class="iconbtn" id="btnSound" type="button" aria-pressed="true">Sonido: sí</button>
+      <button class="iconbtn" id="btnQuit" type="button">Entregar</button>
+    </div>
+    <div class="locks" id="locks" aria-label="Progreso de cerraduras"></div>
+    <article class="term">
+      <div class="term-bar"><span id="tbPath">root@zona-cero:~$</span><span id="tbLvl">cerradura 1/8</span></div>
+      <div class="term-body">
+        <header class="lvl-head">
+          <span class="lvl-num" id="lvNum">Cerradura 01</span>
+          <h2 class="lvl-title" id="lvTitle">…</h2>
+          <span class="tool" id="lvTool">…</span>
+        </header>
+        <p class="story" id="lvStory"></p>
+        <div id="lvPuzzle"></div>
+        <form class="answer" id="fAnswer" autocomplete="off">
+          <input type="text" id="inAnswer" placeholder="Escribí la clave…" aria-label="Respuesta">
+          <button class="btn" type="submit">Hackear</button>
+        </form>
+        <p class="feedback" id="lvFeedback" aria-live="polite"></p>
+        <div class="hints">
+          <div class="hint-row">
+            <button class="btn ghost" type="button" id="btnHint">Pedir pista</button>
+            <span class="cost" id="hintCost">Pista 1 de 2 · cuesta 15 puntos</span>
+          </div>
+          <div id="hintList" class="hints"></div>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <!-- ===== RESULTADOS ===== -->
+  <section class="results" id="scrResults" hidden>
+    <h1 class="logo" style="font-size:clamp(40px,9vw,80px)">Misión<span>terminada</span></h1>
+    <div class="grade">
+      <div class="grade-num" id="rGrade">0<small>/10</small></div>
+      <div>
+        <p id="rName" style="margin:0;font-size:22px;color:var(--cyan)"></p>
+        <p id="rMsg" style="margin:0;color:var(--muted)"></p>
+      </div>
+    </div>
+    <div class="sumgrid">
+      <div class="sum"><small>Cerraduras abiertas</small><b id="rLevels">0/8</b></div>
+      <div class="sum"><small>Puntos</small><b id="rPts">0</b></div>
+      <div class="sum"><small>Pistas usadas</small><b id="rHints">0</b></div>
+      <div class="sum"><small>Errores</small><b id="rErr">0</b></div>
+      <div class="sum"><small>Tiempo usado</small><b id="rTime">0:00</b></div>
+    </div>
+    <p class="criteria">Criterio de nota: 1 punto base + 1 por cada cerradura abierta (máximo 9). El 10 se logra abriendo las 8 cerraduras con 600 puntos o más.</p>
+    <ol class="steps">
+      <li>Tocá <b>Descargar comprobante</b>. Se guarda una imagen con tu nombre y tu resultado.</li>
+      <li>Entrá a <b id="rPlat">CREA</b> y subí esa imagen en la tarea del escape room.</li>
+    </ol>
+    <div class="row">
+      <button class="btn pink big" type="button" id="btnDownload">Descargar comprobante</button>
+      <button class="btn" type="button" id="btnSend" hidden>Enviar al profe</button>
+      <button class="btn ghost" type="button" id="btnReset">Nuevo agente</button>
+    </div>
+    <p class="feedback" id="rFeedback" aria-live="polite"></p>
+  </section>
+</div>
+
+<!-- Overlays -->
+<div class="overlay" id="ovWin" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="owTitle">
+    <h2 id="owTitle">Cerradura abierta</h2>
+    <p id="owText"></p>
+    <div class="fact"><b>Dato hacker</b><span id="owFact"></span></div>
+    <div class="row"><button class="btn" type="button" id="btnNext">Siguiente cerradura</button></div>
+  </div>
+</div>
+<div class="overlay" id="ovLock" hidden>
+  <div class="modal red" role="alertdialog" aria-modal="true" aria-labelledby="olTitle">
+    <h2 id="olTitle">Sistema bloqueado</h2>
+    <p>Gastaste todos tus intentos. Así se defienden los sistemas de los ataques de fuerza bruta: después de varios errores, te hacen esperar.</p>
+    <div class="countdown" id="olCount">30</div>
+    <p style="color:var(--muted);font-size:14px">Aprovechá para seguir investigando. Las vidas se recargan al terminar.</p>
+  </div>
+</div>
+<div class="overlay" id="ovQuit" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="oqTitle" style="border-color:var(--pink)">
+    <h2 id="oqTitle" style="color:var(--pink)">¿Entregar ahora?</h2>
+    <p>Se termina la misión y se calcula tu nota con las cerraduras que abriste. No vas a poder seguir jugando.</p>
+    <div class="row">
+      <button class="btn pink" type="button" id="btnQuitYes">Sí, entregar</button>
+      <button class="btn ghost" type="button" id="btnQuitNo">Seguir jugando</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===================== CONFIG (docente) ===================== */
+const CONFIG = {
+  TIEMPO_MIN: 40,          // duración de la misión en minutos
+  VIDAS: 5,                // intentos antes del bloqueo
+  BLOQUEO_SEG: 30,         // segundos de bloqueo
+  PLATAFORMA: "CREA",      // dónde suben el comprobante
+  ENVIO_URL: ""            // opcional: URL de un Apps Script para recibir los resultados directo
+};
+/* ============================================================ */
+
+console.log("%c>> NÚCLEO: nadie debería estar mirando la consola...", "color:#3dff7a;font-size:14px");
+console.log("%c>> Fragmento recuperado: la clave de la cerradura 2 es FANTASMA", "color:#ff2bd6");
+
+const SALT = "r00t@BU::";
+function fnv(s){let h=0x811c9dc5;const b=new TextEncoder().encode(s);for(const x of b){h^=x;h=Math.imul(h,0x01000193)>>>0}return h.toString(16).padStart(8,"0")}
+function norm(s){return s.normalize("NFD").replace(/[̀-ͯ]/g,"").toUpperCase().replace(/[^A-Z0-9]/g,"")}
+const $ = id => document.getElementById(id);
+
+/* ===================== NIVELES ===================== */
+const LEVELS = [
+  { title:"Señales de ceros y unos", tool:"Código binario (ASCII)", hash:"07b91d66",
+    story:"La primera puerta habla el idioma de las máquinas. Cada grupo de 8 números es una letra.",
+    puzzle:()=>`<div class="cipher"><small>Mensaje interceptado</small>01001100 01001100 01000001 01010110 01000101</div>`,
+    hints:["Cada bloque de 8 bits es un byte. Buscá una tabla ASCII y fijate qué letra le corresponde a cada número.",
+           "Pasá cada bloque a número decimal: 01000001 vale 65, que en ASCII es la A. La respuesta tiene 5 letras."],
+    fact:"Todo lo que ves en una computadora, incluso este texto, se guarda como ceros y unos. ASCII es la tabla que dice qué número corresponde a cada letra." },
+
+  { title:"Lo que no se ve", tool:"Inspeccionar una página web", hash:"67273495",
+    story:"NÚCLEO escondió la clave en esta misma página. Está a la vista, pero no se ve.",
+    puzzle:()=>`<p class="ghost-text">[ archivo recuperado ] la clave de esta cerradura es FANTASMA</p>
+      <div class="cipher cyan"><small>Estado</small>no se encontraron mensajes visibles</div>`,
+    hints:["No todo lo que está en la pantalla se ve. El texto puede estar pintado del mismo color que el fondo.",
+           "Probá seleccionar todo con Ctrl + A, o hacé clic derecho y elegí Inspeccionar. Los programadores también dejan comentarios en el código."],
+    fact:"Cualquiera puede ver el código de una página web. Por eso nunca se guardan contraseñas ni datos secretos en el código que llega al navegador." },
+
+  { title:"Luz en la oscuridad", tool:"Código Morse", hash:"06d77b53",
+    story:"Una antena del techo transmite un mensaje con pulsos de luz y sonido. Puntos cortos, rayas largas.",
+    puzzle:()=>`<div class="morse"><div class="led" id="led"></div>
+      <button class="btn" type="button" id="btnMorse">Reproducir señal</button>
+      <div class="morse-txt" id="morseTxt" aria-live="polite"></div></div>`,
+    hints:["Anotá en un papel: pulso corto = punto (.), pulso largo = raya (-). Una pausa más larga separa una letra de la otra.",
+           "Ahora la señal también se muestra escrita abajo. Buscá un traductor o una tabla de código Morse."],
+    fact:"El código Morse se usó en el telégrafo desde el siglo XIX. No es un cifrado secreto: es una codificación, y cualquiera que conozca la tabla lo puede leer." },
+
+  { title:"El cifrado del emperador", tool:"Cifrado César · desplazamiento 3", hash:"ddec9d18",
+    story:"Este mensaje usa el método que usaba Julio César para mandar órdenes. Cada letra se corrió 3 lugares en el alfabeto.",
+    puzzle:()=>`<div class="cipher"><small>Mensaje cifrado</small>OD SDODEUD VHFUHWD HV FRUWDIXHJRV</div>`,
+    hints:["Para descifrar hay que correr cada letra 3 lugares hacia atrás: la D vuelve a ser A.",
+           "Hay decodificadores de César en la web. Se usa el alfabeto de 26 letras, sin la Ñ. La respuesta es la última palabra."],
+    fact:"El cifrado César es uno de los más antiguos que se conocen. Es muy débil: hay solo 25 claves posibles." },
+
+  { title:"Texto disfrazado", tool:"Base64", hash:"7767816e",
+    story:"Este texto parece cifrado, pero en realidad está codificado. Las computadoras lo usan para mandar datos por internet.",
+    puzzle:()=>`<div class="cipher cyan"><small>Datos capturados</small>bGEgY2xhdmUgZXMgVFJPWUFOTw==</div>`,
+    hints:["Los signos = al final son una pista clásica de este formato.",
+           "Buscá un decodificador de Base64 en la web y pegá el texto completo, con los = incluidos."],
+    fact:"Base64 no protege nada: no tiene clave. Sirve para transportar datos, no para esconderlos. Confundir codificar con cifrar es un error de seguridad muy común." },
+
+  { title:"Sin la llave", tool:"Cifrado César · clave desconocida", hash:"157cb089",
+    story:"Otra vez César, pero ahora NÚCLEO no dejó la clave. Vas a tener que atacarlo como un hacker.",
+    puzzle:()=>`<div class="cipher"><small>Mensaje cifrado</small>CR CCRMV UVC GIFOZDF EZMVC VJ VEZXDR</div>`,
+    hints:["Si hay solo 25 claves posibles, se pueden probar todas. Eso se llama ataque de fuerza bruta.",
+           "Algunos decodificadores de César tienen la opción de probar todos los desplazamientos juntos. Buscá la línea que se pueda leer en español. Guardá bien la respuesta: la vas a necesitar."],
+    fact:"Un ataque de fuerza bruta prueba todas las claves posibles. Funciona contra César porque son pocas. Los cifrados modernos tienen tantas claves que probarlas todas llevaría miles de millones de años." },
+
+  { title:"La máquina de las claves", tool:"Cifrado Vigenère", hash:"7d59809d",
+    story:"Este cifrado usa una palabra como clave, y cada letra se corre una cantidad distinta. La clave es la respuesta de la cerradura anterior.",
+    puzzle:()=>`<div class="cipher"><small>Mensaje cifrado · sin espacios</small>PNZKEPYRAZMEWPQHQRWROADIHNL</div>`,
+    hints:["Buscá un decodificador de Vigenère. Necesitás dos cosas: el mensaje y la palabra clave.",
+           "El resultado sale todo junto, sin espacios. Leelo despacio: hay una frase escondida y la respuesta es la última palabra."],
+    fact:"Durante unos 300 años al cifrado Vigenère se lo llamó «el cifrado indescifrable». En el siglo XIX se descubrió cómo romperlo analizando patrones que se repiten." },
+
+  { title:"La contraseña del administrador", tool:"Hash SHA-256", hash:"c9af08d9",
+    story:"Última cerradura. Encontraste la contraseña del administrador, pero guardada como hash: una huella que no se puede revertir. El problema es que el admin eligió una contraseña muy común.",
+    puzzle:()=>`<div class="cipher cyan hash"><small>Hash SHA-256 de la contraseña</small>a941a4c4fd0c01cddef61b8be963bf4c1e2b0811c037ce3f1835fddf6ef6c223</div>`,
+    hints:["Un hash no se puede «descifrar», pero las contraseñas comunes ya tienen su hash calculado y guardado en tablas públicas.",
+           "Buscá un sitio de búsqueda de hashes (por ejemplo, «hash lookup» o «crack hash online») y pegá el hash completo."],
+    fact:"Los sitios guardan tu contraseña como hash. Si es común, ya está en listas de hashes conocidos y se encuentra en segundos. Una contraseña larga y única no aparece en esas listas." }
+];
+
+/* ===================== AUDIO ===================== */
+let AC=null, soundOn=true;
+function ac(){ if(!AC){ try{AC=new (window.AudioContext||window.webkitAudioContext)()}catch(e){} } if(AC&&AC.state==="suspended")AC.resume(); return AC }
+function tone(f,d,type="square",vol=.06,when=0,slide=0){
+  if(!soundOn)return; const a=ac(); if(!a)return;
+  const t=a.currentTime+when, o=a.createOscillator(), g=a.createGain();
+  o.type=type; o.frequency.setValueAtTime(f,t); if(slide)o.frequency.exponentialRampToValueAtTime(slide,t+d);
+  g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(.0001,t+d);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t+d+.02);
+}
+const SFX={
+  key:()=>tone(1400+Math.random()*400,.03,"square",.015),
+  ok:()=>[523,659,784,1046].forEach((f,i)=>tone(f,.18,"square",.05,i*.09)),
+  bad:()=>{tone(220,.25,"sawtooth",.06,0,90);tone(150,.3,"sawtooth",.05,.12,70)},
+  hint:()=>tone(880,.12,"triangle",.06,0,1320),
+  alarm:()=>{for(let i=0;i<6;i++)tone(i%2?660:440,.18,"square",.05,i*.2)},
+  boot:()=>[200,300,450,700].forEach((f,i)=>tone(f,.15,"sawtooth",.04,i*.08)),
+  win:()=>[392,523,659,784,1046,1318].forEach((f,i)=>tone(f,.25,"square",.05,i*.12))
+};
+
+/* ===================== ESTADO ===================== */
+const KEY="zonaCero_v1";
+let S=null, tick=null, lockTick=null, morseBusy=false;
+function save(){ try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){} }
+function load(){ try{return JSON.parse(localStorage.getItem(KEY)||"null")}catch(e){return null} }
+function newState(name,group){
+  return {name,group,lvl:0,pts:0,lives:CONFIG.VIDAS,err:0,hintsTotal:0,hints:LEVELS.map(()=>0),
+          solved:0,start:Date.now(),end:null,lockUntil:0,done:false};
+}
+
+/* ===================== PANTALLAS ===================== */
+function show(id){ ["scrIntro","scrGame","scrResults"].forEach(s=>$(s).hidden = s!==id); window.scrollTo(0,0) }
+
+$("fIntro").addEventListener("submit",e=>{
+  e.preventDefault();
+  const n=$("inName").value.trim(), g=$("inGroup").value.trim();
+  if(n.split(/\s+/).length<2){ $("introErr").textContent="Escribí nombre y apellido para que el profe sepa quién sos."; return }
+  if(!g){ $("introErr").textContent="Falta el grupo."; return }
+  ac(); SFX.boot();
+  S=newState(n,g); save(); startGame();
+});
+
+function startGame(){
+  show("scrGame");
+  $("hWho").textContent=`AGENTE ${S.name.toUpperCase()} · ${S.group}`;
+  renderLevel(); updateHud();
+  clearInterval(tick); tick=setInterval(updateTime,1000); updateTime();
+  if(S.lockUntil>Date.now()) startLock(false);
+}
+
+function updateHud(){
+  $("hPts").textContent=S.pts;
+  $("hLives").innerHTML=Array.from({length:CONFIG.VIDAS},(_,i)=>`<span class="life ${i<S.lives?"":"off"}"></span>`).join("");
+  $("locks").innerHTML=LEVELS.map((_,i)=>`<div class="lock ${i<S.solved?"done":i===S.lvl?"now":""}">${i<S.solved?"ABIERTA":"0"+(i+1)}</div>`).join("");
+}
+function remaining(){ return CONFIG.TIEMPO_MIN*60000-(Date.now()-S.start) }
+function fmt(ms){ ms=Math.max(0,ms); const s=Math.round(ms/1000); return `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}` }
+function updateTime(){
+  const r=remaining(); $("hTime").textContent=fmt(r); $("hTime").classList.toggle("low",r<5*60000);
+  if(r<=0) finish();
+}
+
+let typer=null;
+function typeText(el,text){
+  clearInterval(typer); el.textContent=""; let i=0;
+  const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(reduce){ el.textContent=text; return }
+  const cur=document.createElement("span"); cur.className="cur"; cur.innerHTML="&nbsp;";
+  typer=setInterval(()=>{ el.textContent=text.slice(0,++i); el.appendChild(cur); if(i%3===0)SFX.key();
+    if(i>=text.length){clearInterval(typer)} },18);
+}
+
+function renderLevel(){
+  const L=LEVELS[S.lvl];
+  $("lvNum").textContent=`Cerradura ${String(S.lvl+1).padStart(2,"0")} de 08`;
+  $("tbLvl").textContent=`cerradura ${S.lvl+1}/8`;
+  $("tbPath").textContent=`root@zona-cero:~/cerradura_${S.lvl+1}$`;
+  $("lvTitle").textContent=L.title;
+  $("lvTool").textContent=L.tool;
+  typeText($("lvStory"),L.story);
+  $("lvPuzzle").innerHTML=L.puzzle();
+  $("inAnswer").value=""; $("lvFeedback").textContent=""; $("lvFeedback").className="feedback";
+  renderHints();
+  if(S.lvl===2) setupMorse();
+  updateHud();
+}
+function renderHints(){
+  const used=S.hints[S.lvl], L=LEVELS[S.lvl];
+  $("hintList").innerHTML=L.hints.slice(0,used).map((h,i)=>`<p class="hint">Pista ${i+1}: ${h}</p>`).join("");
+  $("btnHint").disabled = used>=2;
+  $("hintCost").textContent = used>=2 ? "Ya usaste las dos pistas de esta cerradura" : `Pista ${used+1} de 2 · cuesta 15 puntos`;
+  if(S.lvl===2 && used>=2) $("morseTxt").textContent = MORSE_TXT;
+}
+$("btnHint").addEventListener("click",()=>{
+  if(S.hints[S.lvl]>=2)return;
+  S.hints[S.lvl]++; S.hintsTotal++; S.pts=Math.max(0,S.pts-15); SFX.hint(); save(); renderHints(); updateHud();
+});
+
+$("inAnswer").addEventListener("keydown",()=>SFX.key());
+$("fAnswer").addEventListener("submit",e=>{
+  e.preventDefault();
+  if(S.lockUntil>Date.now())return;
+  const v=norm($("inAnswer").value); if(!v)return;
+  if(fnv(SALT+v)===LEVELS[S.lvl].hash){ solve() } else { fail() }
+});
+function fail(){
+  S.err++; S.lives--; S.pts=Math.max(0,S.pts-10); SFX.bad();
+  const t=document.querySelector(".term"); t.classList.remove("shake"); void t.offsetWidth; t.classList.add("shake");
+  $("lvFeedback").className="feedback bad";
+  $("lvFeedback").textContent = S.lives>0 ? `ACCESO DENEGADO. Te quedan ${S.lives} ${S.lives===1?"intento":"intentos"}.` : "ACCESO DENEGADO.";
+  if(S.lives<=0){ S.lockUntil=Date.now()+CONFIG.BLOQUEO_SEG*1000; save(); updateHud(); startLock(true); return }
+  save(); updateHud();
+}
+function startLock(sound){
+  $("ovLock").hidden=false; if(sound)SFX.alarm();
+  clearInterval(lockTick);
+  const step=()=>{ const r=Math.ceil((S.lockUntil-Date.now())/1000); $("olCount").textContent=Math.max(0,r);
+    if(r<=0){ clearInterval(lockTick); S.lives=CONFIG.VIDAS; S.lockUntil=0; save(); updateHud(); $("ovLock").hidden=true;
+      $("lvFeedback").className="feedback"; $("lvFeedback").textContent="Sistema desbloqueado. Vidas recargadas."; } };
+  step(); lockTick=setInterval(step,250);
+}
+function solve(){
+  S.pts+=100; S.solved=S.lvl+1; SFX.ok(); save(); updateHud();
+  const last = S.lvl===LEVELS.length-1;
+  $("owTitle").textContent = last ? "Servidor liberado" : "Cerradura abierta";
+  $("owText").textContent = last ? "Abriste las 8 cerraduras. NÚCLEO perdió el control del servidor." : `Cerradura ${S.lvl+1} de 8 superada. +100 puntos.`;
+  $("owFact").textContent = LEVELS[S.lvl].fact;
+  $("btnNext").textContent = last ? "Ver mi resultado" : "Siguiente cerradura";
+  $("ovWin").hidden=false; $("btnNext").focus();
+  if(last) setTimeout(SFX.win,500);
+}
+$("btnNext").addEventListener("click",()=>{
+  $("ovWin").hidden=true;
+  if(S.solved>=LEVELS.length){ finish(); return }
+  S.lvl=S.solved; save(); renderLevel(); $("inAnswer").focus();
+});
+
+$("btnQuit").addEventListener("click",()=>{ $("ovQuit").hidden=false });
+$("btnQuitNo").addEventListener("click",()=>{ $("ovQuit").hidden=true });
+$("btnQuitYes").addEventListener("click",()=>{ $("ovQuit").hidden=true; finish() });
+$("btnSound").addEventListener("click",e=>{ soundOn=!soundOn; e.target.textContent="Sonido: "+(soundOn?"sí":"no"); e.target.setAttribute("aria-pressed",soundOn) });
+
+/* ===================== MORSE ===================== */
+const MORSE={R:".-.",A:".-",D:"-..",I:"..",O:"---"};
+const WORD="RADIO", MORSE_TXT=[...WORD].map(c=>MORSE[c]).join("   ");
+function setupMorse(){
+  $("btnMorse").addEventListener("click",playMorse);
+  if(S.hints[2]>=2) $("morseTxt").textContent=MORSE_TXT;
+}
+async function playMorse(){
+  if(morseBusy)return; morseBusy=true; $("btnMorse").disabled=true; ac();
+  const U=180, led=$("led"), wait=ms=>new Promise(r=>setTimeout(r,ms));
+  for(const c of WORD){
+    for(const s of MORSE[c]){
+      const d = s==="." ? U : U*3;
+      led.classList.add("on");
+      if(soundOn&&ac()){ const a=AC,o=a.createOscillator(),g=a.createGain(); o.frequency.value=650; o.type="sine";
+        g.gain.setValueAtTime(.08,a.currentTime); g.gain.setValueAtTime(.08,a.currentTime+d/1000-.01); g.gain.linearRampToValueAtTime(0,a.currentTime+d/1000);
+        o.connect(g).connect(a.destination); o.start(); o.stop(a.currentTime+d/1000+.02); }
+      await wait(d); led.classList.remove("on"); await wait(U);
+    }
+    await wait(U*4);
+  }
+  morseBusy=false; if($("btnMorse")) $("btnMorse").disabled=false;
+}
+
+/* ===================== RESULTADOS ===================== */
+function grade(){
+  let n=1+Math.min(S.solved,8);
+  if(S.solved>=8 && S.pts>=600) n=10;
+  return Math.min(10,n);
+}
+function finish(){
+  if(S.done){ showResults(); return }
+  S.done=true; S.end=Date.now(); clearInterval(tick); clearInterval(lockTick);
+  ["ovLock","ovWin","ovQuit"].forEach(o=>$(o).hidden=true);
+  save(); showResults();
+}
+function showResults(){
+  show("scrResults");
+  const g=grade();
+  $("rGrade").innerHTML=`${g}<small>/10</small>`;
+  $("rName").textContent=`${S.name} · ${S.group}`;
+  $("rMsg").textContent = S.solved>=8 ? "Abriste todas las cerraduras. Nivel hacker ético." :
+                          S.solved>=5 ? "Muy buen trabajo. Llegaste lejos en el sistema." :
+                          S.solved>=1 ? "Rompiste algunas defensas. La próxima vas por más." : "El sistema resistió esta vez.";
+  $("rLevels").textContent=`${S.solved}/8`;
+  $("rPts").textContent=S.pts; $("rHints").textContent=S.hintsTotal; $("rErr").textContent=S.err;
+  $("rTime").textContent=fmt(Math.min((S.end||Date.now())-S.start,CONFIG.TIEMPO_MIN*60000));
+  $("rPlat").textContent=CONFIG.PLATAFORMA;
+  $("btnSend").hidden=!CONFIG.ENVIO_URL;
+}
+function verif(){ return fnv(`${S.name}|${S.group}|${S.solved}|${S.pts}|${grade()}|${S.start}`).toUpperCase() }
+
+async function drawCert(){
+  try{ await document.fonts.ready }catch(e){}
+  const c=document.createElement("canvas"); c.width=1200; c.height=675; const x=c.getContext("2d");
+  x.fillStyle="#06050b"; x.fillRect(0,0,1200,675);
+  x.globalAlpha=.12; x.fillStyle="#3dff7a"; x.font="16px 'Share Tech Mono', monospace";
+  for(let i=0;i<60;i++) for(let j=0;j<28;j++) if(Math.random()<.35) x.fillText(Math.random()<.5?"0":"1",i*20,j*24+16);
+  x.globalAlpha=1;
+  x.strokeStyle="#3dff7a"; x.lineWidth=3; x.strokeRect(24,24,1152,627);
+  x.save(); x.translate(70,140); x.rotate(-.04);
+  x.shadowColor="#ff2bd6"; x.shadowBlur=24; x.fillStyle="#ff2bd6"; x.font="84px 'Rubik Spray Paint', Impact, sans-serif";
+  x.fillText("Operación",0,0);
+  x.shadowColor="#3dff7a"; x.fillStyle="#3dff7a"; x.font="60px 'Rubik Spray Paint', Impact, sans-serif"; x.fillText("Zona Cero",120,70);
+  x.restore(); x.shadowBlur=0;
+  x.fillStyle="#8f88aa"; x.font="18px 'Share Tech Mono', monospace"; x.fillText("COMPROBANTE DE MISIÓN · ESCAPE ROOM DE CIBERSEGURIDAD",70,270);
+  x.fillStyle="#14f0ff"; x.font="40px 'Share Tech Mono', monospace"; x.fillText(S.name,70,325);
+  x.fillStyle="#e9e6f5"; x.font="26px 'Share Tech Mono', monospace"; x.fillText("Grupo: "+S.group,70,365);
+  const rows=[["Cerraduras abiertas",`${S.solved} / 8`],["Puntos",String(S.pts)],["Pistas usadas",String(S.hintsTotal)],
+              ["Errores",String(S.err)],["Tiempo usado",fmt(Math.min((S.end||Date.now())-S.start,CONFIG.TIEMPO_MIN*60000))]];
+  rows.forEach((r,i)=>{ x.fillStyle="#8f88aa"; x.font="22px 'Share Tech Mono', monospace"; x.fillText(r[0],70,425+i*38);
+    x.fillStyle="#e9e6f5"; x.fillText(r[1],390,425+i*38); });
+  x.textAlign="center"; x.shadowColor="#f6ff3b"; x.shadowBlur=30; x.fillStyle="#f6ff3b";
+  x.font="230px 'Rubik Spray Paint', Impact, sans-serif"; x.fillText(String(grade()),930,440); x.shadowBlur=0;
+  x.fillStyle="#8f88aa"; x.font="26px 'Share Tech Mono', monospace"; x.fillText("NOTA / 10",930,490);
+  x.textAlign="left"; x.fillStyle="#8f88aa"; x.font="16px 'Share Tech Mono', monospace";
+  const d=new Date(S.end||Date.now());
+  x.fillText(`Fecha: ${d.toLocaleDateString("es-UY")} ${d.toLocaleTimeString("es-UY",{hour:"2-digit",minute:"2-digit"})}   ·   Código de verificación: ${verif()}`,70,628);
+  return c;
+}
+$("btnDownload").addEventListener("click",async()=>{
+  const c=await drawCert();
+  c.toBlob(b=>{
+    const safe=S.name.normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-zA-Z0-9]+/g,"_");
+    const a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download=`zona-cero_${safe}_${S.group.replace(/[^a-zA-Z0-9]+/g,"")}.png`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    $("rFeedback").className="feedback ok"; $("rFeedback").textContent=`Comprobante descargado. Ahora subilo a ${CONFIG.PLATAFORMA}.`;
+    SFX.ok();
+  },"image/png");
+});
+$("btnSend").addEventListener("click",async()=>{
+  const data={nombre:S.name,grupo:S.group,cerraduras:S.solved,puntos:S.pts,pistas:S.hintsTotal,errores:S.err,nota:grade(),
+              tiempo:fmt((S.end||Date.now())-S.start),codigo:verif(),actividad:"Escape room Zona Cero",fecha:new Date().toISOString()};
+  try{ await fetch(CONFIG.ENVIO_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain"},body:JSON.stringify(data)});
+       $("rFeedback").className="feedback ok"; $("rFeedback").textContent="Resultado enviado. Igual descargá el comprobante por las dudas."; }
+  catch(e){ $("rFeedback").className="feedback bad"; $("rFeedback").textContent="No se pudo enviar. Revisá la conexión y descargá el comprobante."; }
+});
+
+$("btnReset").addEventListener("click",()=>{ try{localStorage.removeItem(KEY)}catch(e){} location.reload() });
+
+/* ===================== LLUVIA DE CÓDIGO ===================== */
+(function(){
+  const cv=$("rain"), x=cv.getContext("2d"); if(matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+  let cols=[], W=0, H=0; const F=16, CH="01ABCDEF<>/{}#$%";
+  function size(){ W=cv.width=innerWidth; H=cv.height=innerHeight; cols=Array(Math.ceil(W/F)).fill(0).map(()=>Math.random()*-50) }
+  size(); addEventListener("resize",size);
+  setInterval(()=>{ x.fillStyle="rgba(6,5,11,.18)"; x.fillRect(0,0,W,H); x.font=F+"px monospace";
+    cols.forEach((y,i)=>{ x.fillStyle=Math.random()<.03?"#ff2bd6":"#3dff7a"; x.fillText(CH[Math.random()*CH.length|0],i*F,y*F);
+      cols[i]= y*F>H && Math.random()>.975 ? 0 : y+1 }) },60);
+})();
+
+/* ===================== ARRANQUE ===================== */
+(function(){
+  const prev=load();
+  if(prev && prev.name){ S=prev; if(S.done) showResults(); else if(remaining()<=0) finish(); else startGame() }
+})();
+</script>
